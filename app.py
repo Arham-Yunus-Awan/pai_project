@@ -1,4 +1,30 @@
-import io
+st.markdown("---")
+        
+        with st.expander("📋 Features Used (Click to view stats)", expanded=False):
+            # Prepare data for feature stats
+            model_df = df[df['state'].isin(selected_states)].copy()
+            
+            feature_info = {
+                'Total Positive Cases': 'positive',
+                'Total Deaths': 'death',
+                'Current Hospitalizations': 'hospitalizedCurrently',
+                'ICU Patients': 'inIcuCurrently',
+                'Ventilator Usage': 'onVentilatorCurrently',
+                'Previous Day Cases': 'positiveIncrease'
+            }
+            
+            for name, col in feature_info.items():
+                if col in model_df.columns:
+                    values = model_df[col].dropna()
+                    if len(values) > 0:
+                        st.markdown(f"**{name}** (`{col}`)")
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Mean", f"{values.mean():,.0f}")
+                        with col_b:
+                            st.metric("Max", f"{values.max():,.0f}")
+                        with col_c:
+                            st.import io
 import base64
 import pickle
 from pathlib import Path
@@ -82,6 +108,26 @@ body {{
 /* Sidebar styling */
 section[data-testid="stSidebar"] > div {{
   background: linear-gradient(180deg, rgba(108, 99, 255, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+}}
+
+section[data-testid="stSidebar"] * {{
+  color: white !important;
+}}
+
+section[data-testid="stSidebar"] label {{
+  color: white !important;
+  font-weight: 500;
+}}
+
+section[data-testid="stSidebar"] .stMarkdown {{
+  color: white !important;
+}}
+
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] h4 {{
+  color: white !important;
 }}
 
 /* Dark mode adjustments */
@@ -514,15 +560,33 @@ with tabs[4]:
         train_button = st.button("🚀 Train Model", use_container_width=True, type="primary")
         
         st.markdown("---")
-        st.info("""
-        **Features Used:**
-        - Total positive cases
-        - Total deaths
-        - Current hospitalizations
-        - ICU patients
-        - Ventilator usage
-        - Previous day cases
-        """)
+        
+        with st.expander("📋 Features Used (Click to view stats)", expanded=False):
+            # Prepare data for feature stats
+            model_df = df[df['state'].isin(selected_states)].copy()
+            
+            feature_info = {
+                'Total Positive Cases': 'positive',
+                'Total Deaths': 'death',
+                'Current Hospitalizations': 'hospitalizedCurrently',
+                'ICU Patients': 'inIcuCurrently',
+                'Ventilator Usage': 'onVentilatorCurrently',
+                'Previous Day Cases': 'positiveIncrease'
+            }
+            
+            for name, col in feature_info.items():
+                if col in model_df.columns:
+                    values = model_df[col].dropna()
+                    if len(values) > 0:
+                        st.markdown(f"**{name}** (`{col}`)")
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Mean", f"{values.mean():,.0f}")
+                        with col_b:
+                            st.metric("Max", f"{values.max():,.0f}")
+                        with col_c:
+                            st.metric("Min", f"{values.min():,.0f}")
+                        st.markdown("---")
     
     with col2:
         if train_button or 'model_trained' not in st.session_state:
