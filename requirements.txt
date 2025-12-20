@@ -1,3 +1,6 @@
 streamlit
 pandas
 plotly
+scikit-learn
+numpyopenpyxl==3.1.2
+requests==2.31.0

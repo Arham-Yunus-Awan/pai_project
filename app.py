@@ -1,5 +1,6 @@
 import io
 import base64
+import pickle
 from pathlib import Path
 from datetime import datetime
 
@@ -9,6 +10,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
 st.set_page_config(page_title="COVID-19 Analytics Dashboard", layout="wide", page_icon="📊")
 
@@ -217,7 +224,7 @@ Roll No: **2430-0007**
 PAI Course Project
 """)
 
-tabs = st.tabs(["🏠 Dashboard", "📈 Trend Analysis", "🌍 Geographic View", "🔬 Deep Dive", "💾 Export Data"])
+tabs = st.tabs(["🏠 Dashboard", "📈 Trend Analysis", "🌍 Geographic View", "🔬 Deep Dive", "🤖 ML Predictions", "💾 Export Data"])
 
 # TAB 1: Dashboard Overview
 with tabs[0]:
@@ -458,8 +465,258 @@ with tabs[3]:
                                      'positiveIncrease', 'deathIncrease']].describe()
         st.dataframe(summary_stats, use_container_width=True)
 
-# TAB 5: Export
+# TAB 5: ML Predictions
 with tabs[4]:
+    st.markdown("### 🤖 Machine Learning Model - Predict Daily Cases")
+    st.markdown("**Model**: Random Forest Regressor predicts `positiveIncrease` (daily new cases)")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("#### 🎛️ Model Hyperparameters")
+        
+        n_estimators = st.slider(
+            "Number of Trees (n_estimators)",
+            min_value=10,
+            max_value=200,
+            value=100,
+            step=10,
+            help="Number of trees in the forest"
+        )
+        
+        max_depth = st.slider(
+            "Maximum Depth",
+            min_value=5,
+            max_value=50,
+            value=20,
+            step=5,
+            help="Maximum depth of each tree"
+        )
+        
+        min_samples_split = st.slider(
+            "Min Samples Split",
+            min_value=2,
+            max_value=20,
+            value=5,
+            step=1,
+            help="Minimum samples required to split a node"
+        )
+        
+        test_size = st.slider(
+            "Test Size (%)",
+            min_value=10,
+            max_value=40,
+            value=20,
+            step=5,
+            help="Percentage of data for testing"
+        ) / 100
+        
+        train_button = st.button("🚀 Train Model", use_container_width=True, type="primary")
+        
+        st.markdown("---")
+        st.info("""
+        **Features Used:**
+        - Total positive cases
+        - Total deaths
+        - Current hospitalizations
+        - ICU patients
+        - Ventilator usage
+        - Previous day cases
+        """)
+    
+    with col2:
+        if train_button or 'model_trained' not in st.session_state:
+            with st.spinner('Training model...'):
+                # Prepare data
+                model_df = df[df['state'].isin(selected_states)].copy()
+                model_df = model_df.sort_values(['state', 'date'])
+                
+                # Create features
+                feature_cols = ['positive', 'death', 'hospitalizedCurrently', 
+                               'inIcuCurrently', 'onVentilatorCurrently']
+                
+                # Remove rows with missing target
+                model_df = model_df.dropna(subset=['positiveIncrease'])
+                
+                # Fill missing features with 0
+                for col in feature_cols:
+                    model_df[col] = model_df[col].fillna(0)
+                
+                # Create lag features
+                model_df['prev_day_cases'] = model_df.groupby('state')['positiveIncrease'].shift(1).fillna(0)
+                
+                feature_cols.append('prev_day_cases')
+                
+                X = model_df[feature_cols].values
+                y = model_df['positiveIncrease'].values
+                
+                # Split data
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=test_size, random_state=42
+                )
+                
+                # Scale features
+                scaler = StandardScaler()
+                X_train_scaled = scaler.fit_transform(X_train)
+                X_test_scaled = scaler.transform(X_test)
+                
+                # Train model
+                model = RandomForestRegressor(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    min_samples_split=min_samples_split,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                model.fit(X_train_scaled, y_train)
+                
+                # Predictions
+                y_pred = model.predict(X_test_scaled)
+                
+                # Calculate metrics
+                mse = mean_squared_error(y_test, y_pred)
+                rmse = np.sqrt(mse)
+                mae = mean_absolute_error(y_test, y_pred)
+                r2 = r2_score(y_test, y_pred)
+                
+                # Store in session state
+                st.session_state['model'] = model
+                st.session_state['scaler'] = scaler
+                st.session_state['feature_cols'] = feature_cols
+                st.session_state['model_trained'] = True
+                st.session_state['metrics'] = {
+                    'rmse': rmse,
+                    'mae': mae,
+                    'r2': r2,
+                    'mse': mse
+                }
+                st.session_state['predictions'] = {
+                    'y_test': y_test,
+                    'y_pred': y_pred
+                }
+        
+        if 'model_trained' in st.session_state and st.session_state['model_trained']:
+            st.markdown("#### ✅ Model Performance")
+            
+            metrics = st.session_state['metrics']
+            
+            col_a, col_b, col_c, col_d = st.columns(4)
+            with col_a:
+                st.metric("R² Score", f"{metrics['r2']:.4f}")
+            with col_b:
+                st.metric("RMSE", f"{metrics['rmse']:.2f}")
+            with col_c:
+                st.metric("MAE", f"{metrics['mae']:.2f}")
+            with col_d:
+                st.metric("MSE", f"{metrics['mse']:.2f}")
+            
+            st.markdown("---")
+            st.markdown("#### 📊 Actual vs Predicted")
+            
+            preds = st.session_state['predictions']
+            
+            # Create scatter plot
+            fig = go.Figure()
+            
+            # Sample points for better visualization
+            sample_size = min(1000, len(preds['y_test']))
+            indices = np.random.choice(len(preds['y_test']), sample_size, replace=False)
+            
+            fig.add_trace(go.Scatter(
+                x=preds['y_test'][indices],
+                y=preds['y_pred'][indices],
+                mode='markers',
+                name='Predictions',
+                marker=dict(
+                    size=6,
+                    color=preds['y_test'][indices],
+                    colorscale='Viridis',
+                    showscale=True,
+                    colorbar=dict(title="Actual")
+                )
+            ))
+            
+            # Add perfect prediction line
+            max_val = max(preds['y_test'].max(), preds['y_pred'].max())
+            fig.add_trace(go.Scatter(
+                x=[0, max_val],
+                y=[0, max_val],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='red', dash='dash', width=2)
+            ))
+            
+            fig.update_layout(
+                title='Actual vs Predicted Daily Cases',
+                xaxis_title='Actual Cases',
+                yaxis_title='Predicted Cases',
+                hovermode='closest',
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown("#### 🌲 Feature Importance")
+            
+            model = st.session_state['model']
+            feature_cols = st.session_state['feature_cols']
+            
+            importances = model.feature_importances_
+            feature_imp_df = pd.DataFrame({
+                'Feature': feature_cols,
+                'Importance': importances
+            }).sort_values('Importance', ascending=True)
+            
+            fig2 = px.bar(
+                feature_imp_df,
+                x='Importance',
+                y='Feature',
+                orientation='h',
+                title='Feature Importance in Prediction',
+                color='Importance',
+                color_continuous_scale='Blues'
+            )
+            fig2.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig2, use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown("#### 💾 Download Model")
+            
+            col_x, col_y = st.columns(2)
+            
+            with col_x:
+                # Serialize model
+                model_data = pickle.dumps({
+                    'model': st.session_state['model'],
+                    'scaler': st.session_state['scaler'],
+                    'feature_cols': st.session_state['feature_cols'],
+                    'metrics': st.session_state['metrics']
+                })
+                
+                st.download_button(
+                    label="📥 Download Trained Model",
+                    data=model_data,
+                    file_name=f'covid_rf_model_{datetime.now().strftime("%Y%m%d_%H%M")}.pkl',
+                    mime='application/octet-stream',
+                    use_container_width=True
+                )
+            
+            with col_y:
+                # Model info
+                model_info = f"""
+                **Model Configuration:**
+                - Algorithm: Random Forest Regressor
+                - Trees: {n_estimators}
+                - Max Depth: {max_depth}
+                - Min Samples Split: {min_samples_split}
+                - Test Size: {int(test_size*100)}%
+                - R² Score: {metrics['r2']:.4f}
+                """
+                st.text_area("Model Info", model_info, height=150)
+
+# TAB 6: Export
+with tabs[5]:
     st.markdown("### 💾 Data Export & Downloads")
     
     st.markdown("#### 📄 Preview Filtered Data")
