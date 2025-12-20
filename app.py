@@ -119,7 +119,7 @@ st.markdown("""
     Interactive exploration and analysis of US COVID-19 pandemic data
   </p>
   <p style='margin:0.5rem 0 0 0; font-size: 0.9rem; opacity: 0.7;'>
-    Developed by Arham Yunus Awan | Programming for AI Course Project
+    Developed by <strong>Arham Yunus Awan</strong> (Roll No: 2430-0007) | Programming for AI Course Project
   </p>
 </div>
 """, unsafe_allow_html=True)
@@ -207,6 +207,14 @@ st.sidebar.info(f"""
 **Records**: {len(df):,}  
 **States**: {len(df['state'].unique())}  
 **Time Span**: {(df['date'].max() - df['date'].min()).days} days
+""")
+
+st.sidebar.markdown('---')
+st.sidebar.markdown('### 👨‍🎓 Student Info')
+st.sidebar.success("""
+**Arham Yunus Awan**  
+Roll No: **2430-0007**  
+PAI Course Project
 """)
 
 tabs = st.tabs(["🏠 Dashboard", "📈 Trend Analysis", "🌍 Geographic View", "🔬 Deep Dive", "💾 Export Data"])
@@ -521,7 +529,7 @@ st.markdown("---")
 st.markdown("""
 <div style='text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(108, 99, 255, 0.1), rgba(255, 107, 157, 0.1)); border-radius: 15px;'>
     <strong style='font-size: 1.1rem;'>🎓 Programming for AI Course Project</strong><br>
-    <span style='font-size: 0.9rem;'>Developed by <strong>Arham Yunus Awan</strong></span><br>
+    <span style='font-size: 0.95rem;'>Developed by <strong>Arham Yunus Awan</strong> | Roll No: <strong>2430-0007</strong></span><br>
     <span style='font-size: 0.85rem; opacity: 0.8;'>Data Source: The COVID Tracking Project | Dataset Last Updated: March 2021</span>
 </div>
 """, unsafe_allow_html=True)
