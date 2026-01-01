@@ -1,0 +1,70 @@
+================================================================================
+COVID-19 CASE PREDICTION - BEST MODEL REPORT
+================================================================================
+
+STUDENT INFORMATION
+--------------------------------------------------------------------------------
+Name:        Arham Yunus Awan
+Roll Number: 2430-0007
+Course:      Programming for AI
+Date:        2026-01-01 13:50:08
+
+MODEL INFORMATION
+--------------------------------------------------------------------------------
+Model Name:        Gradient Boosting
+Model Type:        Tree-based
+Target Variable:   positiveIncrease (Daily COVID-19 Cases)
+Total Features:    45
+Training Samples:  16,624
+Testing Samples:   4,156
+
+PERFORMANCE METRICS
+--------------------------------------------------------------------------------
+R² Score:          0.854214
+RMSE:              1219.99 cases
+MAE:               265.62 cases
+MedAE:             56.38 cases
+MAPE:              45.07%
+sMAPE:             53.87%
+Within ±20%:       44.92%
+Within ±100 cases: 64.63%
+
+ERROR STATISTICS
+--------------------------------------------------------------------------------
+Mean Residual:     98.99 cases
+Std Residual:      1215.97 cases
+Median Residual:   -8.31 cases
+Max Overestimate:  -7493.45 cases
+Max Underestimate: 52800.52 cases
+Correlation:       0.935790
+
+ERROR DISTRIBUTION
+--------------------------------------------------------------------------------
+Within ±50 cases:  45.86%
+Within ±100 cases: 64.63%
+Within ±250 cases: 81.64%
+Within ±500 cases: 90.28%
+
+TRAINING DETAILS
+--------------------------------------------------------------------------------
+Train Date Range:  2020-01-13 00:00:00 to 2020-12-23 00:00:00
+Test Date Range:   2020-12-23 00:00:00 to 2021-03-07 00:00:00
+Split Ratio:       80% train / 20% test (time-based)
+Scaling:           None (tree-based)
+
+TOP 10 FEATURES
+--------------------------------------------------------------------------------
+positiveIncrease_lag_7d........................... 0.549508
+positiveIncrease_lag_1d........................... 0.296355
+positiveIncrease_lag_3d........................... 0.052245
+doubling_time..................................... 0.044766
+positivity_rate_lag_1d............................ 0.008892
+positiveCasesViral................................ 0.008360
+totalTestResultsIncrease_7day_avg................. 0.007437
+deathIncrease_7day_std............................ 0.005893
+hospitalizedCurrently............................. 0.003903
+totalTestResultsIncrease_7day_std................. 0.003256
+
+================================================================================
+END OF REPORT
+================================================================================

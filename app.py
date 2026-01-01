@@ -11,15 +11,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
 st.set_page_config(page_title="COVID-19 Analytics Dashboard", layout="wide", page_icon="📊")
 
-# Custom color scheme - feel free to change these colors!
+# Custom color scheme
 PRIMARY_COLOR = "#6C63FF"
 SECONDARY_COLOR = "#FF6B9D"
 ACCENT_COLOR = "#00D9FF"
@@ -70,7 +69,6 @@ body {{
   color: white;
 }}
 
-/* Custom metric cards */
 [data-testid="stMetric"] {{
   background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
   padding: 1rem;
@@ -79,19 +77,10 @@ body {{
   backdrop-filter: blur(10px);
 }}
 
-/* Sidebar styling */
 section[data-testid="stSidebar"] > div {{
   background: linear-gradient(180deg, rgba(108, 99, 255, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
 }}
 
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {{
-    h1, h2, h3, h4, h5, p, label, span, div {{
-        color: #f5f5f5 !important;
-    }}
-}}
-
-/* Custom button styling */
 .stButton > button {{
   background: linear-gradient(135deg, {PRIMARY_COLOR}, {SECONDARY_COLOR});
   color: white;
@@ -107,7 +96,6 @@ section[data-testid="stSidebar"] > div {{
   box-shadow: 0 5px 15px rgba(108, 99, 255, 0.4);
 }}
 
-/* Info boxes */
 .info-box {{
   background: linear-gradient(135deg, rgba(0, 217, 255, 0.1), rgba(108, 99, 255, 0.1));
   padding: 1.5rem;
@@ -115,7 +103,6 @@ section[data-testid="stSidebar"] > div {{
   border-left: 4px solid {ACCENT_COLOR};
   margin: 1rem 0;
 }}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -123,7 +110,7 @@ st.markdown("""
 <div class="main-header">
   <h1 style='margin:0; font-size: 2.5rem;'>📊 COVID-19 Analytics Dashboard</h1>
   <p style='margin:0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.9;'>
-    Interactive exploration and analysis of US COVID-19 pandemic data
+    Interactive exploration and ML prediction with engineered features
   </p>
   <p style='margin:0.5rem 0 0 0; font-size: 0.9rem; opacity: 0.7;'>
     Developed by <strong>Arham Yunus Awan</strong> (Roll No: 2430-0007) | Programming for AI Course Project
@@ -131,40 +118,33 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-@st.cache_data(show_spinner="Loading COVID-19 data...")
+@st.cache_data(show_spinner="Loading COVID-19 feature-engineered data...")
 def load_covid_data():
     try:
-        url = "https://raw.githubusercontent.com/COVID19Tracking/covid-tracking-data/master/data/states_daily_4pm_et.csv"
-        df = pd.read_csv(url, low_memory=False)
-        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
-        df = df.sort_values(['state', 'date'])
-        
-        numeric_cols = ['positive', 'negative', 'hospitalizedCurrently', 'inIcuCurrently', 
-                       'onVentilatorCurrently', 'death', 'recovered', 'positiveIncrease', 
-                       'negativeIncrease', 'deathIncrease', 'hospitalizedIncrease']
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-        
+        # Load feature-engineered dataset
+        df = pd.read_csv('feature_engineered_data_arham_yunus_awan_2430_0007.csv')
+        df['date'] = pd.to_datetime(df['date'])
         return df
+    except FileNotFoundError:
+        st.error("❌ Feature-engineered dataset not found! Please ensure 'feature_engineered_data_arham_yunus_awan_2430_0007.csv' is in the same directory.")
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return pd.DataFrame()
 
-with st.spinner('🔄 Loading data...'):
+with st.spinner('🔄 Loading feature-engineered data...'):
     df = load_covid_data()
 
 if df.empty:
-    st.error("⚠️ Unable to load data. Please check your connection and try again.")
+    st.error("⚠️ Unable to load data. Please check the file and try again.")
     st.stop()
 
-# Sidebar with custom styling
+# Sidebar
 st.sidebar.markdown("### 🎛️ Control Panel")
 st.sidebar.markdown("---")
 
 states = sorted(df['state'].unique())
 
-# Initialize session state
 if 'selected_states' not in st.session_state:
     st.session_state['selected_states'] = ['CA', 'NY', 'TX', 'FL']
 
@@ -207,12 +187,12 @@ with col_b:
         st.session_state['selected_states'] = ['CA', 'NY', 'TX', 'FL']
         st.rerun()
 
-# Display data info
 st.sidebar.markdown('---')
 st.sidebar.markdown('### 📊 Data Info')
 st.sidebar.info(f"""
 **Records**: {len(df):,}  
 **States**: {len(df['state'].unique())}  
+**Features**: {len(df.columns)}  
 **Time Span**: {(df['date'].max() - df['date'].min()).days} days
 """)
 
@@ -465,10 +445,10 @@ with tabs[3]:
                                      'positiveIncrease', 'deathIncrease']].describe()
         st.dataframe(summary_stats, use_container_width=True)
 
-# TAB 5: ML Predictions
+# TAB 5: ML Predictions (UPDATED - GRADIENT BOOSTING)
 with tabs[4]:
-    st.markdown("### 🤖 Machine Learning Model - Predict Daily Cases")
-    st.markdown("**Model**: Random Forest Regressor predicts `positiveIncrease` (daily new cases)")
+    st.markdown("### 🤖 Gradient Boosting Model - Predict Daily Cases")
+    st.markdown("**Best Model**: Gradient Boosting Regressor (R² = 0.854) with 92 engineered features")
     
     col1, col2 = st.columns([1, 2])
     
@@ -476,30 +456,48 @@ with tabs[4]:
         st.markdown("#### 🎛️ Model Hyperparameters")
         
         n_estimators = st.slider(
-            "Number of Trees (n_estimators)",
-            min_value=10,
-            max_value=200,
+            "Number of Boosting Stages",
+            min_value=50,
+            max_value=300,
             value=100,
-            step=10,
-            help="Number of trees in the forest"
+            step=50,
+            help="🌲 Number of sequential trees to build. More trees = better accuracy but slower training. Typically 100-200 is optimal."
+        )
+        
+        learning_rate = st.slider(
+            "Learning Rate",
+            min_value=0.01,
+            max_value=0.3,
+            value=0.1,
+            step=0.05,
+            help="📉 How much each tree contributes to the final prediction. Lower = more stable but needs more trees. Range: 0.01-0.3"
         )
         
         max_depth = st.slider(
-            "Maximum Depth",
-            min_value=5,
-            max_value=50,
-            value=20,
-            step=5,
-            help="Maximum depth of each tree"
+            "Maximum Tree Depth",
+            min_value=3,
+            max_value=10,
+            value=5,
+            step=1,
+            help="🌳 How deep each decision tree can grow. Deeper = more complex patterns but risk of overfitting. Typically 3-7 for boosting."
         )
         
         min_samples_split = st.slider(
-            "Min Samples Split",
+            "Min Samples to Split",
             min_value=2,
             max_value=20,
             value=5,
             step=1,
-            help="Minimum samples required to split a node"
+            help="✂️ Minimum data points required to split a node. Higher = simpler trees, less overfitting. Range: 2-20"
+        )
+        
+        subsample = st.slider(
+            "Subsample Ratio",
+            min_value=0.5,
+            max_value=1.0,
+            value=0.8,
+            step=0.1,
+            help="🎲 Fraction of samples used for each tree. <1.0 adds randomness and prevents overfitting. Typical: 0.7-0.9"
         )
         
         test_size = st.slider(
@@ -508,91 +506,116 @@ with tabs[4]:
             max_value=40,
             value=20,
             step=5,
-            help="Percentage of data for testing"
+            help="📊 Percentage of data reserved for testing. Typical: 20-30%. More test data = better evaluation, less training data."
         ) / 100
         
-        train_button = st.button("🚀 Train Model", use_container_width=True, type="primary")
+        st.markdown("---")
+        
+        train_button = st.button("🚀 Train Gradient Boosting Model", use_container_width=True, type="primary")
         
         st.markdown("---")
         st.info("""
-        **Features Used:**
-        - Total positive cases
-        - Total deaths
-        - Current hospitalizations
-        - ICU patients
-        - Ventilator usage
-        - Previous day cases
+        **92 Engineered Features Used:**
+        - ⏰ Temporal: day, month, week, seasonality
+        - 📊 Lag features: 1, 3, 7 days historical
+        - 📈 Rolling averages: 7 & 14 day trends
+        - 📉 Growth rates & acceleration
+        - 🏥 Healthcare metrics
+        - 🗺️ State-level statistics
         """)
     
     with col2:
         if train_button or 'model_trained' not in st.session_state:
-            with st.spinner('Training model...'):
-                # Prepare data
+            with st.spinner('🔄 Training Gradient Boosting model...'):
+                # Prepare data from feature-engineered dataset
                 model_df = df[df['state'].isin(selected_states)].copy()
                 model_df = model_df.sort_values(['state', 'date'])
                 
-                # Create features
-                feature_cols = ['positive', 'death', 'hospitalizedCurrently', 
-                               'inIcuCurrently', 'onVentilatorCurrently']
+                # Define features to exclude
+                exclude_columns = [
+                    'positiveIncrease',  # Target
+                    'date', 'state', 'fips',  # IDs
+                    'positive', 'death', 'totalTestResults', 'hospitalizedCumulative',  # Cumulative (leakage)
+                    'total', 'posNeg',  # Redundant
+                    'negativeIncrease', 'totalTestResultsIncrease', 'deathIncrease', 'hospitalizedIncrease',  # Same-day
+                ]
+                
+                # Get feature columns
+                feature_cols = [col for col in model_df.columns if col not in exclude_columns]
+                feature_cols = [col for col in feature_cols if model_df[col].dtype in ['int64', 'float64']]
                 
                 # Remove rows with missing target
                 model_df = model_df.dropna(subset=['positiveIncrease'])
                 
-                # Fill missing features with 0
+                # Fill missing features
                 for col in feature_cols:
                     model_df[col] = model_df[col].fillna(0)
-                
-                # Create lag features
-                model_df['prev_day_cases'] = model_df.groupby('state')['positiveIncrease'].shift(1).fillna(0)
-                
-                feature_cols.append('prev_day_cases')
                 
                 X = model_df[feature_cols].values
                 y = model_df['positiveIncrease'].values
                 
-                # Split data
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X, y, test_size=test_size, random_state=42
-                )
+                # Time-based split
+                model_df = model_df.sort_values('date').reset_index(drop=True)
+                X_sorted = model_df[feature_cols].values
+                y_sorted = model_df['positiveIncrease'].values
                 
-                # Scale features
-                scaler = StandardScaler()
-                X_train_scaled = scaler.fit_transform(X_train)
-                X_test_scaled = scaler.transform(X_test)
+                split_index = int(len(model_df) * (1 - test_size))
+                X_train = X_sorted[:split_index]
+                X_test = X_sorted[split_index:]
+                y_train = y_sorted[:split_index]
+                y_test = y_sorted[split_index:]
                 
-                # Train model
-                model = RandomForestRegressor(
+                # Train Gradient Boosting model
+                model = GradientBoostingRegressor(
                     n_estimators=n_estimators,
+                    learning_rate=learning_rate,
                     max_depth=max_depth,
                     min_samples_split=min_samples_split,
+                    subsample=subsample,
                     random_state=42,
-                    n_jobs=-1
+                    verbose=0
                 )
-                model.fit(X_train_scaled, y_train)
+                
+                model.fit(X_train, y_train)
                 
                 # Predictions
-                y_pred = model.predict(X_test_scaled)
+                y_pred = model.predict(X_test)
                 
                 # Calculate metrics
                 mse = mean_squared_error(y_test, y_pred)
                 rmse = np.sqrt(mse)
                 mae = mean_absolute_error(y_test, y_pred)
                 r2 = r2_score(y_test, y_pred)
+                medae = np.median(np.abs(y_test - y_pred))
+                
+                # Additional metrics
+                within_100 = np.mean(np.abs(y_test - y_pred) <= 100) * 100
+                within_250 = np.mean(np.abs(y_test - y_pred) <= 250) * 100
                 
                 # Store in session state
                 st.session_state['model'] = model
-                st.session_state['scaler'] = scaler
                 st.session_state['feature_cols'] = feature_cols
                 st.session_state['model_trained'] = True
                 st.session_state['metrics'] = {
                     'rmse': rmse,
                     'mae': mae,
+                    'medae': medae,
                     'r2': r2,
-                    'mse': mse
+                    'mse': mse,
+                    'within_100': within_100,
+                    'within_250': within_250
                 }
                 st.session_state['predictions'] = {
                     'y_test': y_test,
                     'y_pred': y_pred
+                }
+                st.session_state['hyperparameters'] = {
+                    'n_estimators': n_estimators,
+                    'learning_rate': learning_rate,
+                    'max_depth': max_depth,
+                    'min_samples_split': min_samples_split,
+                    'subsample': subsample,
+                    'test_size': test_size
                 }
         
         if 'model_trained' in st.session_state and st.session_state['model_trained']:
@@ -602,13 +625,19 @@ with tabs[4]:
             
             col_a, col_b, col_c, col_d = st.columns(4)
             with col_a:
-                st.metric("R² Score", f"{metrics['r2']:.4f}")
+                st.metric("R² Score", f"{metrics['r2']:.4f}", help="Variance explained (0-1, higher better)")
             with col_b:
-                st.metric("RMSE", f"{metrics['rmse']:.2f}")
+                st.metric("RMSE", f"{metrics['rmse']:.0f}", help="Root Mean Squared Error")
             with col_c:
-                st.metric("MAE", f"{metrics['mae']:.2f}")
+                st.metric("MAE", f"{metrics['mae']:.0f}", help="Mean Absolute Error")
             with col_d:
-                st.metric("MSE", f"{metrics['mse']:.2f}")
+                st.metric("MedAE", f"{metrics['medae']:.0f}", help="Median Absolute Error")
+            
+            col_e, col_f = st.columns(2)
+            with col_e:
+                st.metric("Within ±100", f"{metrics['within_100']:.1f}%", help="% predictions within 100 cases")
+            with col_f:
+                st.metric("Within ±250", f"{metrics['within_250']:.1f}%", help="% predictions within 250 cases")
             
             st.markdown("---")
             st.markdown("#### 📊 Actual vs Predicted")
@@ -618,9 +647,12 @@ with tabs[4]:
             # Create scatter plot
             fig = go.Figure()
             
-            # Sample points for better visualization
+            # Sample for visualization
             sample_size = min(1000, len(preds['y_test']))
             indices = np.random.choice(len(preds['y_test']), sample_size, replace=False)
+            
+            # Residuals for color
+            residuals = preds['y_test'] - preds['y_pred']
             
             fig.add_trace(go.Scatter(
                 x=preds['y_test'][indices],
@@ -628,36 +660,40 @@ with tabs[4]:
                 mode='markers',
                 name='Predictions',
                 marker=dict(
-                    size=6,
-                    color=preds['y_test'][indices],
-                    colorscale='Viridis',
+                    size=8,
+                    color=residuals[indices],
+                    colorscale='RdYlGn_r',
                     showscale=True,
-                    colorbar=dict(title="Actual")
-                )
+                    colorbar=dict(title="Error"),
+                    line=dict(width=0.5, color='black')
+                ),
+                text=[f'Actual: {a:.0f}<br>Predicted: {p:.0f}<br>Error: {a-p:.0f}' 
+                      for a, p in zip(preds['y_test'][indices], preds['y_pred'][indices])],
+                hovertemplate='%{text}<extra></extra>'
             ))
             
-            # Add perfect prediction line
+            # Perfect prediction line
             max_val = max(preds['y_test'].max(), preds['y_pred'].max())
             fig.add_trace(go.Scatter(
                 x=[0, max_val],
                 y=[0, max_val],
                 mode='lines',
                 name='Perfect Prediction',
-                line=dict(color='red', dash='dash', width=2)
+                line=dict(color='red', dash='dash', width=3)
             ))
             
             fig.update_layout(
-                title='Actual vs Predicted Daily Cases',
+                title='Actual vs Predicted Daily Cases (Gradient Boosting)',
                 xaxis_title='Actual Cases',
                 yaxis_title='Predicted Cases',
                 hovermode='closest',
-                height=400
+                height=450
             )
             
             st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("---")
-            st.markdown("#### 🌲 Feature Importance")
+            st.markdown("#### 🌲 Top 15 Feature Importances")
             
             model = st.session_state['model']
             feature_cols = st.session_state['feature_cols']
@@ -666,22 +702,23 @@ with tabs[4]:
             feature_imp_df = pd.DataFrame({
                 'Feature': feature_cols,
                 'Importance': importances
-            }).sort_values('Importance', ascending=True)
+            }).sort_values('Importance', ascending=False).head(15)
             
             fig2 = px.bar(
                 feature_imp_df,
-                x='Importance',
                 y='Feature',
+                x='Importance',
                 orientation='h',
-                title='Feature Importance in Prediction',
+                title='Top 15 Most Important Features',
                 color='Importance',
-                color_continuous_scale='Blues'
+                color_continuous_scale='Blues',
+                labels={'Importance': 'Importance Score'}
             )
-            fig2.update_layout(showlegend=False, height=400)
+            fig2.update_layout(showlegend=False, height=500, yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig2, use_container_width=True)
             
             st.markdown("---")
-            st.markdown("#### 💾 Download Model")
+            st.markdown("#### 💾 Download Model & Report")
             
             col_x, col_y = st.columns(2)
             
@@ -689,31 +726,49 @@ with tabs[4]:
                 # Serialize model
                 model_data = pickle.dumps({
                     'model': st.session_state['model'],
-                    'scaler': st.session_state['scaler'],
                     'feature_cols': st.session_state['feature_cols'],
-                    'metrics': st.session_state['metrics']
+                    'metrics': st.session_state['metrics'],
+                    'hyperparameters': st.session_state['hyperparameters'],
+                    'model_name': 'Gradient Boosting',
+                    'student': 'Arham Yunus Awan',
+                    'roll_number': '2430-0007'
                 })
                 
                 st.download_button(
-                    label="📥 Download Trained Model",
+                    label="📥 Download Trained Model (.pkl)",
                     data=model_data,
-                    file_name=f'covid_rf_model_{datetime.now().strftime("%Y%m%d_%H%M")}.pkl',
+                    file_name=f'gradient_boosting_covid_model_{datetime.now().strftime("%Y%m%d_%H%M")}.pkl',
                     mime='application/octet-stream',
                     use_container_width=True
                 )
             
             with col_y:
-                # Model info
-                model_info = f"""
-                **Model Configuration:**
-                - Algorithm: Random Forest Regressor
-                - Trees: {n_estimators}
-                - Max Depth: {max_depth}
-                - Min Samples Split: {min_samples_split}
-                - Test Size: {int(test_size*100)}%
-                - R² Score: {metrics['r2']:.4f}
+                # Model report
+                hyperparams = st.session_state['hyperparameters']
+                model_report = f"""
+**Model Configuration:**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Algorithm: Gradient Boosting
+Student: Arham Yunus Awan
+Roll No: 2430-0007
+
+Hyperparameters:
+- Trees: {hyperparams['n_estimators']}
+- Learning Rate: {hyperparams['learning_rate']}
+- Max Depth: {hyperparams['max_depth']}
+- Min Samples Split: {hyperparams['min_samples_split']}
+- Subsample: {hyperparams['subsample']}
+- Test Size: {int(hyperparams['test_size']*100)}%
+
+Performance:
+- R² Score: {metrics['r2']:.4f}
+- RMSE: {metrics['rmse']:.0f}
+- MAE: {metrics['mae']:.0f}
+- MedAE: {metrics['medae']:.0f}
+
+Features Used: {len(feature_cols)}
                 """
-                st.text_area("Model Info", model_info, height=150)
+                st.text_area("Model Report", model_report, height=350)
 
 # TAB 6: Export
 with tabs[5]:
@@ -787,6 +842,6 @@ st.markdown("""
 <div style='text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(108, 99, 255, 0.1), rgba(255, 107, 157, 0.1)); border-radius: 15px;'>
     <strong style='font-size: 1.1rem;'>🎓 Programming for AI Course Project</strong><br>
     <span style='font-size: 0.95rem;'>Developed by <strong>Arham Yunus Awan</strong> | Roll No: <strong>2430-0007</strong></span><br>
-    <span style='font-size: 0.85rem; opacity: 0.8;'>Data Source: The COVID Tracking Project | Dataset Last Updated: March 2021</span>
+    <span style='font-size: 0.85rem; opacity: 0.8;'>Using 92 Engineered Features | Best Model: Gradient Boosting (R² = 0.854)</span>
 </div>
 """, unsafe_allow_html=True)
