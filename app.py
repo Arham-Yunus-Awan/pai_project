@@ -445,10 +445,10 @@ with tabs[3]:
                                      'positiveIncrease', 'deathIncrease']].describe()
         st.dataframe(summary_stats, use_container_width=True)
 
-# TAB 5: ML Predictions (UPDATED - GRADIENT BOOSTING)
+# TAB 5: ML Predictions (UPDATED WITH PROPER FEATURE EXCLUSION)
 with tabs[4]:
     st.markdown("### 🤖 Gradient Boosting Model - Predict Daily Cases")
-    st.markdown("**Best Model**: Gradient Boosting Regressor (R² = 0.854) with 92 engineered features")
+    st.markdown("**Algorithm**: Gradient Boosting Regressor with feature-engineered dataset")
     
     col1, col2 = st.columns([1, 2])
     
@@ -515,13 +515,12 @@ with tabs[4]:
         
         st.markdown("---")
         st.info("""
-        **92 Engineered Features Used:**
+        **Safe Features Used:**
         - ⏰ Temporal: day, month, week, seasonality
-        - 📊 Lag features: 1, 3, 7 days historical
-        - 📈 Rolling averages: 7 & 14 day trends
-        - 📉 Growth rates & acceleration
-        - 🏥 Healthcare metrics
-        - 🗺️ State-level statistics
+        - 📊 Lag features: past values only
+        - 🏥 Healthcare metrics (current status)
+        - 🗺️ State-level historical statistics
+        - ❌ No data leakage (excludes same-day & cumulative)
         """)
     
     with col2:
@@ -531,30 +530,65 @@ with tabs[4]:
                 model_df = df[df['state'].isin(selected_states)].copy()
                 model_df = model_df.sort_values(['state', 'date'])
                 
-                # Define features to exclude
+                # === CRITICAL: EXCLUDE LEAKAGE FEATURES (SAME AS PHASE 3) ===
                 exclude_columns = [
-                    'positiveIncrease',  # Target
-                    'date', 'state', 'fips',  # IDs
-                    'positive', 'death', 'totalTestResults', 'hospitalizedCumulative',  # Cumulative (leakage)
-                    'total', 'posNeg',  # Redundant
-                    'negativeIncrease', 'totalTestResultsIncrease', 'deathIncrease', 'hospitalizedIncrease',  # Same-day
+                    # === TARGET AND DIRECT DERIVATIVES ===
+                    'positiveIncrease',  # Target itself
+                    
+                    # === CUMULATIVE COLUMNS (contain target) ===
+                    'positive', 'death', 'totalTestResults', 'hospitalizedCumulative',
+                    'total', 'posNeg',
+                    
+                    # === IDENTIFIER COLUMNS ===
+                    'date', 'state', 'fips', 'state_encoded',
+                    
+                    # === SAME-DAY INCREMENTS (parallel to target) ===
+                    'negativeIncrease', 'totalTestResultsIncrease', 'deathIncrease', 'hospitalizedIncrease',
+                    
+                    # === ROLLING AVERAGES THAT INCLUDE TODAY ===
+                    'positiveIncrease_7day_avg', 'positiveIncrease_14day_avg', 'positiveIncrease_7day_std',
+                    
+                    # === STATE TOTALS (derived from cumulative) ===
+                    'state_total_cases', 'state_total_deaths',
+                    
+                    # === SAME-DAY GROWTH RATES ===
+                    'positive_growth_rate', 'death_growth_rate', 'case_acceleration', 'death_acceleration',
+                    
+                    # === FEATURES USING TODAY'S TARGET ===
+                    'cases_vs_state_avg', 'cases_vs_state_max',
+                    
+                    # === RATIOS USING CUMULATIVE (which contains target) ===
+                    'positivity_rate', 'death_rate', 'hospitalization_rate', 'recovery_rate', 'active_cases',
+                    
+                    # === LOG TRANSFORMS OF LEAKY FEATURES ===
+                    'positive_log', 'death_log', 'totalTestResults_log', 
+                    'hospitalizedCumulative_log', 'positiveIncrease_log',
+                    
+                    # === SCALED VERSIONS OF LEAKY FEATURES ===
+                    'positive_scaled', 'death_scaled', 'totalTestResults_scaled',
+                    'positiveIncrease_scaled', 'deathIncrease_scaled',
+                    'hospitalization_rate_scaled', 'death_rate_scaled', 'positivity_rate_scaled',
+                    
+                    # === INTERACTION FEATURES WITH LEAKAGE ===
+                    'test_intensity_x_positivity', 'hospital_severity', 'death_momentum',
                 ]
                 
-                # Get feature columns
+                # Get safe feature columns
                 feature_cols = [col for col in model_df.columns if col not in exclude_columns]
                 feature_cols = [col for col in feature_cols if model_df[col].dtype in ['int64', 'float64']]
                 
                 # Remove rows with missing target
                 model_df = model_df.dropna(subset=['positiveIncrease'])
                 
-                # Fill missing features
+                # Fill missing features with 0
                 for col in feature_cols:
                     model_df[col] = model_df[col].fillna(0)
                 
-                X = model_df[feature_cols].values
-                y = model_df['positiveIncrease'].values
+                # Replace infinities
+                for col in feature_cols:
+                    model_df[col] = model_df[col].replace([np.inf, -np.inf], 0)
                 
-                # Time-based split
+                # Time-based split (chronological)
                 model_df = model_df.sort_values('date').reset_index(drop=True)
                 X_sorted = model_df[feature_cols].values
                 y_sorted = model_df['positiveIncrease'].values
@@ -622,6 +656,27 @@ with tabs[4]:
             st.markdown("#### ✅ Model Performance")
             
             metrics = st.session_state['metrics']
+            
+            # Display performance grade
+            r2_val = metrics['r2']
+            if r2_val >= 0.85:
+                grade = "A+ (Excellent)"
+                grade_color = "🟢"
+            elif r2_val >= 0.75:
+                grade = "A (Very Good)"
+                grade_color = "🟢"
+            elif r2_val >= 0.65:
+                grade = "B (Good)"
+                grade_color = "🟡"
+            elif r2_val >= 0.50:
+                grade = "C (Fair)"
+                grade_color = "🟡"
+            else:
+                grade = "D (Poor)"
+                grade_color = "🔴"
+            
+            st.markdown(f"**Model Grade:** {grade_color} {grade}")
+            st.markdown("---")
             
             col_a, col_b, col_c, col_d = st.columns(4)
             with col_a:
@@ -765,10 +820,11 @@ Performance:
 - RMSE: {metrics['rmse']:.0f}
 - MAE: {metrics['mae']:.0f}
 - MedAE: {metrics['medae']:.0f}
+- Grade: {grade}
 
 Features Used: {len(feature_cols)}
                 """
-                st.text_area("Model Report", model_report, height=350)
+                st.text_area("Model Report", model_report, height=380)
 
 # TAB 6: Export
 with tabs[5]:
@@ -842,6 +898,6 @@ st.markdown("""
 <div style='text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(108, 99, 255, 0.1), rgba(255, 107, 157, 0.1)); border-radius: 15px;'>
     <strong style='font-size: 1.1rem;'>🎓 Programming for AI Course Project</strong><br>
     <span style='font-size: 0.95rem;'>Developed by <strong>Arham Yunus Awan</strong> | Roll No: <strong>2430-0007</strong></span><br>
-    <span style='font-size: 0.85rem; opacity: 0.8;'>Using 92 Engineered Features | Best Model: Gradient Boosting (R² = 0.854)</span>
+    <span style='font-size: 0.85rem; opacity: 0.8;'>Feature-Engineered Dataset | Gradient Boosting Regressor</span>
 </div>
 """, unsafe_allow_html=True)
