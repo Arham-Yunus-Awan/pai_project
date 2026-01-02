@@ -143,55 +143,143 @@ if df.empty:
 st.sidebar.markdown("### 🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-states = sorted(df['state'].unique())
+# Get all unique states
+all_states = sorted(df['state'].unique())
 
+# Initialize session state
 if 'selected_states' not in st.session_state:
     st.session_state['selected_states'] = ['CA', 'NY', 'TX', 'FL']
 
-selected_states = st.sidebar.multiselect(
-    '🗺️ Select States to Analyze',
-    options=states,
-    default=st.session_state['selected_states']
+# State selection with "Select All" checkbox
+st.sidebar.markdown("#### 🗺️ State Selection")
+
+select_all = st.sidebar.checkbox(
+    "📌 Select All States",
+    value=len(st.session_state['selected_states']) == len(all_states),
+    help="Toggle to select or deselect all states at once"
 )
+
+# Handle "Select All" logic
+if select_all:
+    if len(st.session_state['selected_states']) != len(all_states):
+        st.session_state['selected_states'] = all_states
+    selected_states = st.sidebar.multiselect(
+        'Choose States',
+        options=all_states,
+        default=all_states,
+        help=f"All {len(all_states)} states selected"
+    )
+else:
+    selected_states = st.sidebar.multiselect(
+        'Choose States',
+        options=all_states,
+        default=st.session_state['selected_states'],
+        help="Select individual states to analyze"
+    )
+
+# Update session state
+if selected_states:
+    st.session_state['selected_states'] = selected_states
+else:
+    st.session_state['selected_states'] = ['CA']  # Fallback to at least one state
+
+# Display selection count
+st.sidebar.caption(f"✓ {len(st.session_state['selected_states'])} state{'s' if len(st.session_state['selected_states']) != 1 else ''} selected")
+
+# Date range
+st.sidebar.markdown("---")
+st.sidebar.markdown("#### 📅 Date Range")
 
 date_min = df['date'].min()
 date_max = df['date'].max()
 date_range = st.sidebar.date_input(
-    '📅 Date Range',
+    'Select Time Period',
     value=(date_min, date_max),
     min_value=date_min,
-    max_value=date_max
+    max_value=date_max,
+    help="Filter data by date range"
 )
 
 if len(date_range) == 2:
     filtered_df = df[
-        (df['state'].isin(selected_states)) &
+        (df['state'].isin(st.session_state['selected_states'])) &
         (df['date'] >= pd.to_datetime(date_range[0])) &
         (df['date'] <= pd.to_datetime(date_range[1]))
     ]
 else:
-    filtered_df = df[df['state'].isin(selected_states)]
+    filtered_df = df[df['state'].isin(st.session_state['selected_states'])]
 
+# Quick Actions
 st.sidebar.markdown('---')
 st.sidebar.markdown('### ⚡ Quick Actions')
 
 col_a, col_b = st.sidebar.columns(2)
 with col_a:
-    if st.button('🔥 Top 5', use_container_width=True):
+    if st.button('🔥 Top 5', use_container_width=True, help="Select top 5 states by total cases"):
         top_states = df.groupby('state')['positive'].max().nlargest(5).index.tolist()
         st.session_state['selected_states'] = top_states
         st.rerun()
 
 with col_b:
-    if st.button('🔄 Reset', use_container_width=True):
+    if st.button('🔄 Reset', use_container_width=True, help="Reset to default (CA, NY, TX, FL)"):
         st.session_state['selected_states'] = ['CA', 'NY', 'TX', 'FL']
         st.rerun()
 
+col_c, col_d = st.sidebar.columns(2)
+with col_c:
+    if st.button('🌎 All', use_container_width=True, help="Select all states"):
+        st.session_state['selected_states'] = all_states
+        st.rerun()
+
+with col_d:
+    if st.button('❌ Clear', use_container_width=True, help="Clear selection"):
+        st.session_state['selected_states'] = ['CA']  # Keep at least one
+        st.rerun()
+
+# Quick preset selections
+st.sidebar.markdown("---")
+st.sidebar.markdown("#### 🎯 Quick Presets")
+
+quick_select = st.sidebar.selectbox(
+    "Choose preset",
+    [
+        "Custom",
+        "Top 10 States",
+        "Bottom 10 States",
+        "West Coast (CA, OR, WA)",
+        "East Coast (NY, NJ, MA, CT)",
+        "Southern (TX, FL, GA, NC)",
+        "Midwest (IL, MI, OH, IN)"
+    ],
+    help="Quick preset state selections"
+)
+
+if quick_select != "Custom":
+    if quick_select == "Top 10 States":
+        preset_states = df.groupby('state')['positive'].max().nlargest(10).index.tolist()
+    elif quick_select == "Bottom 10 States":
+        preset_states = df.groupby('state')['positive'].max().nsmallest(10).index.tolist()
+    elif quick_select == "West Coast (CA, OR, WA)":
+        preset_states = ['CA', 'OR', 'WA']
+    elif quick_select == "East Coast (NY, NJ, MA, CT)":
+        preset_states = ['NY', 'NJ', 'MA', 'CT']
+    elif quick_select == "Southern (TX, FL, GA, NC)":
+        preset_states = ['TX', 'FL', 'GA', 'NC']
+    elif quick_select == "Midwest (IL, MI, OH, IN)":
+        preset_states = ['IL', 'MI', 'OH', 'IN']
+    
+    if st.sidebar.button(f"Apply {quick_select}", use_container_width=True):
+        st.session_state['selected_states'] = preset_states
+        st.rerun()
+
+# Data Info
 st.sidebar.markdown('---')
 st.sidebar.markdown('### 📊 Data Info')
 st.sidebar.info(f"""
-**Records**: {len(df):,}  
-**States**: {len(df['state'].unique())}  
+**Total Records**: {len(df):,}  
+**Filtered**: {len(filtered_df):,}  
+**All States**: {len(all_states)}  
+**Selected**: {len(st.session_state['selected_states'])}  
 **Features**: {len(df.columns)}  
 **Time Span**: {(df['date'].max() - df['date'].min()).days} days
 """)
@@ -211,16 +299,17 @@ with tabs[0]:
     st.markdown("### 📊 Key Performance Indicators")
     
     latest_data = df[df['date'] == df['date'].max()]
+    selected_latest = latest_data[latest_data['state'].isin(st.session_state['selected_states'])]
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        total_cases = latest_data['positive'].sum()
+        total_cases = selected_latest['positive'].sum()
         st.metric('💉 Total Cases', f'{total_cases:,.0f}')
     with col2:
-        total_deaths = latest_data['death'].sum()
+        total_deaths = selected_latest['death'].sum()
         st.metric('⚰️ Total Deaths', f'{total_deaths:,.0f}')
     with col3:
-        hospitalized = latest_data['hospitalizedCurrently'].sum()
+        hospitalized = selected_latest['hospitalizedCurrently'].sum()
         st.metric('🏥 Hospitalized', f'{hospitalized:,.0f}')
     with col4:
         mortality_rate = (total_deaths / total_cases * 100) if total_cases > 0 else 0
@@ -231,7 +320,7 @@ with tabs[0]:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.markdown("### 📈 Daily Cases Timeline")
+        st.markdown(f"### 📈 Daily Cases Timeline ({len(st.session_state['selected_states'])} State{'s' if len(st.session_state['selected_states']) > 1 else ''})")
         if not filtered_df.empty:
             daily_cases = filtered_df.groupby('date')['positiveIncrease'].sum().reset_index()
             fig = px.area(daily_cases, x='date', y='positiveIncrease', 
@@ -277,10 +366,10 @@ with tabs[1]:
     with col2:
         chart_type = st.radio("Chart Type", ["Line", "Area"], horizontal=True)
     
-    if not filtered_df.empty and selected_states:
+    if not filtered_df.empty and st.session_state['selected_states']:
         fig = go.Figure()
         
-        for idx, state in enumerate(selected_states):
+        for idx, state in enumerate(st.session_state['selected_states']):
             state_data = filtered_df[filtered_df['state'] == state]
             
             if chart_type == "Area":
@@ -303,7 +392,7 @@ with tabs[1]:
                 ))
         
         fig.update_layout(
-            title=f'{metric_option.title()} Over Time',
+            title=f'{metric_option.title()} Over Time - {len(st.session_state["selected_states"])} State{"s" if len(st.session_state["selected_states"]) > 1 else ""}',
             xaxis_title='Date',
             yaxis_title=metric_option.title(),
             hovermode='x unified',
@@ -352,10 +441,16 @@ with tabs[2]:
         latest = latest.merge(peak_cases, on='state', how='left')
         title = '🔥 Peak Daily Cases'
     
-    top_20 = latest.nlargest(20, 'metric')
+    # Filter if custom selection
+    if len(st.session_state['selected_states']) < len(all_states):
+        display_data = latest[latest['state'].isin(st.session_state['selected_states'])].nlargest(20, 'metric')
+        chart_title = f'{title} - Selected States'
+    else:
+        display_data = latest.nlargest(20, 'metric')
+        chart_title = f'{title} by State (Top 20)'
     
-    fig = px.bar(top_20, x='state', y='metric',
-                title=f'{title} by State (Top 20)',
+    fig = px.bar(display_data, x='state', y='metric',
+                title=chart_title,
                 labels={'metric': comparison_metric, 'state': 'State'},
                 color='metric',
                 color_continuous_scale='Viridis')
@@ -381,7 +476,7 @@ with tabs[2]:
                                  line=dict(color='#FF4500', width=3)))
         
         fig2.update_layout(
-            title='Healthcare Capacity Utilization Over Time',
+            title=f'Healthcare Capacity Utilization Over Time - {len(st.session_state["selected_states"])} State{"s" if len(st.session_state["selected_states"]) > 1 else ""}',
             xaxis_title='Date',
             yaxis_title='Number of Patients',
             hovermode='x unified',
@@ -409,7 +504,7 @@ with tabs[3]:
         st.markdown("#### Correlation Heatmap")
         corr_cols = ['positive', 'death', 'hospitalizedCurrently', 'inIcuCurrently', 
                      'positiveIncrease', 'deathIncrease']
-        corr_data = df[corr_cols].dropna()
+        corr_data = filtered_df[corr_cols].dropna()
         
         if not corr_data.empty:
             corr_matrix = corr_data.corr()
@@ -445,10 +540,10 @@ with tabs[3]:
                                      'positiveIncrease', 'deathIncrease']].describe()
         st.dataframe(summary_stats, use_container_width=True)
 
-# TAB 5: ML Predictions (UPDATED WITH PROPER FEATURE EXCLUSION)
+# TAB 5: ML Predictions (SAME AS ORIGINAL - NO CHANGES NEEDED)
 with tabs[4]:
     st.markdown("### 🤖 Gradient Boosting Model - Predict Daily Cases")
-    st.markdown("**Algorithm**: Gradient Boosting Regressor with feature-engineered dataset")
+    st.markdown(f"**Training on**: {len(st.session_state['selected_states'])} state{'s' if len(st.session_state['selected_states']) > 1 else ''}")
     
     col1, col2 = st.columns([1, 2])
     
@@ -527,7 +622,7 @@ with tabs[4]:
         if train_button or 'model_trained' not in st.session_state:
             with st.spinner('🔄 Training Gradient Boosting model...'):
                 # Prepare data from feature-engineered dataset
-                model_df = df[df['state'].isin(selected_states)].copy()
+                model_df = df[df['state'].isin(st.session_state['selected_states'])].copy()
                 model_df = model_df.sort_values(['state', 'date'])
                 
                 # === CRITICAL: EXCLUDE LEAKAGE FEATURES (SAME AS PHASE 3) ===
