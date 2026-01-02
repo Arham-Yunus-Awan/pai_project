@@ -150,7 +150,7 @@ This project is created for educational purposes as part of the Programming for 
 
 - **Data Source:** The COVID Tracking Project
 - **Course:** Programming for AI
-- **Institution:** [Your Institution Name]
+- **Institution:** Sir Syed CASE Institute of Technology
 
 ---
 
