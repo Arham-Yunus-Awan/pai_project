@@ -530,51 +530,24 @@ with tabs[4]:
                 model_df = df[df['state'].isin(selected_states)].copy()
                 model_df = model_df.sort_values(['state', 'date'])
                 
-                # === CRITICAL: EXCLUDE LEAKAGE FEATURES (SAME AS PHASE 3) ===
-                exclude_columns = [
-                    # === TARGET AND DIRECT DERIVATIVES ===
-                    'positiveIncrease',  # Target itself
+                # GUARANTEED SAFE FEATURES (Manual Whitelist)
+                feature_cols = [
+                    # Temporal (9 features)
+                    'year', 'month', 'day', 'day_of_week', 'day_of_year',
+                    'week_of_year', 'quarter', 'is_weekend', 'days_since_start',
                     
-                    # === CUMULATIVE COLUMNS (contain target) ===
-                    'positive', 'death', 'totalTestResults', 'hospitalizedCumulative',
-                    'total', 'posNeg',
+                    # Current healthcare (3 features)
+                    'hospitalizedCurrently', 'inIcuCurrently', 'onVentilatorCurrently',
                     
-                    # === IDENTIFIER COLUMNS ===
-                    'date', 'state', 'fips', 'state_encoded',
+                    # Lag features of deaths (3 features - NOT cases!)
+                    'deathIncrease_lag_1d', 'deathIncrease_lag_3d', 'deathIncrease_lag_7d',
                     
-                    # === SAME-DAY INCREMENTS (parallel to target) ===
-                    'negativeIncrease', 'totalTestResultsIncrease', 'deathIncrease', 'hospitalizedIncrease',
-                    
-                    # === ROLLING AVERAGES THAT INCLUDE TODAY ===
-                    'positiveIncrease_7day_avg', 'positiveIncrease_14day_avg', 'positiveIncrease_7day_std',
-                    
-                    # === STATE TOTALS (derived from cumulative) ===
-                    'state_total_cases', 'state_total_deaths',
-                    
-                    # === SAME-DAY GROWTH RATES ===
-                    'positive_growth_rate', 'death_growth_rate', 'case_acceleration', 'death_acceleration',
-                    
-                    # === FEATURES USING TODAY'S TARGET ===
-                    'cases_vs_state_avg', 'cases_vs_state_max',
-                    
-                    # === RATIOS USING CUMULATIVE (which contains target) ===
-                    'positivity_rate', 'death_rate', 'hospitalization_rate', 'recovery_rate', 'active_cases',
-                    
-                    # === LOG TRANSFORMS OF LEAKY FEATURES ===
-                    'positive_log', 'death_log', 'totalTestResults_log', 
-                    'hospitalizedCumulative_log', 'positiveIncrease_log',
-                    
-                    # === SCALED VERSIONS OF LEAKY FEATURES ===
-                    'positive_scaled', 'death_scaled', 'totalTestResults_scaled',
-                    'positiveIncrease_scaled', 'deathIncrease_scaled',
-                    'hospitalization_rate_scaled', 'death_rate_scaled', 'positivity_rate_scaled',
-                    
-                    # === INTERACTION FEATURES WITH LEAKAGE ===
-                    'test_intensity_x_positivity', 'hospital_severity', 'death_momentum',
+                    # State historical (3 features)
+                    'state_avg_daily_deaths', 'state_max_daily_deaths', 'state_std_daily_deaths',
                 ]
-                
-                # Get safe feature columns
-                feature_cols = [col for col in model_df.columns if col not in exclude_columns]
+
+                # Filter to only columns that exist
+                feature_cols = [col for col in feature_cols if col in model_df.columns]
                 feature_cols = [col for col in feature_cols if model_df[col].dtype in ['int64', 'float64']]
                 
                 # Remove rows with missing target
